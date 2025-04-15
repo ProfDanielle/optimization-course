@@ -1,0 +1,252 @@
+#4. f(x1, x2) = x21+ 2x1x2 + 2x22, ¯x = (1, 1)T .
+
+import numpy as np
+from sympy import symbols, diff, Matrix, lambdify
+import matplotlib.pyplot as plt
+
+class QuadraticFunctionAnalyzer:
+    def __init__(self):
+        self.x1, self.x2 = symbols('x1 x2')
+        self.f_sym = self.x1**2 + 2*self.x1*self.x2 + 2*self.x2**2
+        self.x_bar = np.array([1, 1])
+        self.d = np.array([1, -1])  # Direção de exemplo
+
+    def compute_gradient(self):
+        """Calcula o gradiente simbólico e avalia em x̄."""
+        grad = [diff(self.f_sym, var) for var in (self.x1, self.x2)]
+        grad_at_xbar = [expr.subs({self.x1:1, self.x2:1}) for expr in grad]
+        return grad, grad_at_xbar
+
+    def compute_hessian(self):
+        """Calcula a Hessiana simbólica (constante para funções quadráticas)."""
+        hessian = Matrix([[diff(diff(self.f_sym, xi), xj) for xj in (self.x1, self.x2)] 
+                         for xi in (self.x1, self.x2)])
+        return hessian
+
+    def check_convexity(self, hessian):
+        """Verifica se a função é convexa via autovalores da Hessiana."""
+        eigenvalues = hessian.eigenvals()
+        is_convex = all(val > 0 for val in eigenvalues.keys())
+        return eigenvalues, is_convex
+
+    def compute_curvature(self, hessian, d):
+        """Calcula a curvatura na direção d em x̄."""
+        H_numeric = np.array(hessian.subs({self.x1:1, self.x2:1})).astype(float)
+        return d.T @ H_numeric @ d
+
+    def preconditioning(self, hessian):
+        """Realiza a mudança de variáveis usando decomposição de Cholesky."""
+        H_numeric = np.array(hessian.subs({self.x1:1, self.x2:1})).astype(float)
+        L = np.linalg.cholesky(H_numeric)
+        P = L.T
+        P_inv = np.linalg.inv(P)
+        return P, P_inv
+
+    def visualize(self):
+        """Gera gráficos 3D e de contorno."""
+        f_numeric = lambdify((self.x1, self.x2), self.f_sym, 'numpy')
+        x1_vals = np.linspace(-2, 2, 100)
+        x2_vals = np.linspace(-2, 2, 100)
+        X1, X2 = np.meshgrid(x1_vals, x2_vals)
+        Z = f_numeric(X1, X2)
+
+        fig = plt.figure(figsize=(12, 5))
+        ax1 = fig.add_subplot(121, projection='3d')
+        ax1.plot_surface(X1, X2, Z, cmap='viridis', alpha=0.8)
+        ax1.scatter(1, 1, f_numeric(1, 1), color='red', s=100, label='x̄ = (1,1)')
+        ax1.set_title('Superfície de f(x₁, x₂)')
+        ax1.set_xlabel('x₁')
+        ax1.set_ylabel('x₂')
+
+        ax2 = fig.add_subplot(122)
+        contour = ax2.contour(X1, X2, Z, levels=15, cmap='viridis')
+        ax2.plot(1, 1, 'ro', label='x̄ = (1,1)')
+        ax2.quiver(1, 1, self.d[0], self.d[1], angles='xy', scale_units='xy', scale=1, color='blue', label='Direção d')
+        ax2.set_title('Curvas de nível')
+        ax2.legend()
+        plt.colorbar(contour)
+
+        plt.tight_layout()
+        plt.show()
+
+    def run_analysis(self):
+        """Executa toda a análise e imprime os resultados."""
+        print("="*50)
+        print("ANÁLISE DA FUNÇÃO QUADRÁTICA")
+        print("f(x₁, x₂) = x₁² + 2x₁x₂ + 2x₂²")
+        print("="*50)
+
+        # 1. Gradiente
+        grad, grad_at_xbar = self.compute_gradient()
+        print("\n1. Gradiente:")
+        print(f"∇f(x₁, x₂) = {grad}")
+        print(f"∇f(1, 1) = {grad_at_xbar}")
+
+        # 2. Hessiana
+        hessian = self.compute_hessian()
+        print("\n2. Matriz Hessiana:")
+        print(f"H_f = \n{hessian}")
+
+        # 3. Convexidade
+        eigenvalues, is_convex = self.check_convexity(hessian)
+        print("\n3. Análise de Convexidade:")
+        print(f"Autovalores: {eigenvalues}")
+        print("A função é estritamente convexa? ", "Sim" if is_convex else "Não")
+
+        # 4. Curvatura
+        curvature = self.compute_curvature(hessian, self.d)
+        print("\n4. Curvatura na Direção d:")
+        print(f"Para d = {self.d}:")
+        print(f"Curvatura = dᵀH_fd = {curvature:.2f}")
+
+        # 5. Precondicionamento
+        P, P_inv = self.preconditioning(hessian)
+        print("\n5. Precondicionamento:")
+        print(f"Matriz de transformação P:\n{P}")
+        print(f"Inversa P⁻¹:\n{P_inv}")
+        print("\nExemplo: x = x̄ + P⁻¹y para y = [0.5, 0.5]")
+        print("x_transformado =", self.x_bar + P_inv @ np.array([0.5, 0.5]))
+
+        # Visualização
+        self.visualize()
+
+# Executa a análise
+if __name__ == "__main__":
+    analyzer = QuadraticFunctionAnalyzer()
+    analyzer.run_analysis()
+
+#5. f(x1, x2) = x21− x1x2 + 2x22− 2x1 + ex1+x2, ¯x = (0, 0)T .
+
+import numpy as np
+from sympy import symbols, diff, Matrix, exp, lambdify
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+# Definindo símbolos
+x, y = symbols('x y')
+
+# Definindo a função simbólica
+f_expr = x**2 - x*y + 2*y**2 - 2*x + exp(x + y)
+
+# Ponto e direção analisados
+ponto_base = np.array([0.0, 0.0])
+direcao = np.array([1.0, 1.0])
+
+def gradiente_funcao(expr):
+    grad_simbolico = [diff(expr, var) for var in (x, y)]
+    grad_numerico = [float(g.subs({x: 0, y: 0})) for g in grad_simbolico]
+    return grad_simbolico, grad_numerico
+
+def hessiana_funcao(expr):
+    H = Matrix([[diff(diff(expr, i), j) for j in (x, y)] for i in (x, y)])
+    H_numerico = np.array(H.subs({x: 0, y: 0})).astype(float)
+    return H, H_numerico
+
+def verificar_convexidade(H):
+    autovalores = np.linalg.eigvals(np.array(H.subs({x: 0, y: 0})).astype(float))
+    local_convexo = all(val > 0 for val in autovalores)
+    
+    global_convexo = True
+    for _ in range(100):
+        x_val, y_val = np.random.uniform(-5, 5, 2)
+        H_ponto = np.array(H.subs({x: x_val, y: y_val})).astype(float)
+        if not np.all(np.linalg.eigvals(H_ponto) > 0):
+            global_convexo = False
+            break
+            
+    return autovalores, local_convexo, global_convexo
+
+def curvatura_direcional(H_val, direcao):
+    return direcao.T @ H_val @ direcao
+
+def precondicionamento(H_val):
+    L = np.linalg.cholesky(H_val)
+    P = L.T
+    P_inv = np.linalg.inv(P)
+    return P, P_inv
+
+def plotar_graficos(f_expr, d):
+    f_lamb = lambdify((x, y), f_expr, 'numpy')
+    x_vals = np.linspace(-2, 2, 100)
+    y_vals = np.linspace(-2, 2, 100)
+    X, Y = np.meshgrid(x_vals, y_vals)
+    Z = f_lamb(X, Y)
+
+    fig = plt.figure(figsize=(15, 6))
+    
+    # Superfície 3D
+    ax1 = fig.add_subplot(121, projection='3d')
+    surf = ax1.plot_surface(X, Y, Z, cmap='plasma', alpha=0.85)
+    ax1.scatter(0, 0, f_lamb(0, 0), color='red', s=100, label='Ponto base')
+    ax1.set_title('Superfície da função')
+    ax1.set_xlabel('x')
+    ax1.set_ylabel('y')
+    fig.colorbar(surf, ax=ax1, shrink=0.5)
+
+    # Contornos
+    ax2 = fig.add_subplot(122)
+    contornos = ax2.contour(X, Y, Z, levels=25, cmap='plasma')
+    ax2.plot(0, 0, 'ro', label='Ponto base')
+    ax2.quiver(0, 0, d[0], d[1], color='blue', scale=5, label='Direção d')
+    ax2.set_title('Curvas de nível')
+    ax2.legend()
+    plt.colorbar(contornos)
+
+    plt.tight_layout()
+    plt.show()
+
+def main():
+    print("="*60)
+    print("ANÁLISE DA FUNÇÃO: f(x, y) = x² - xy + 2y² - 2x + e^(x+y)")
+    print("="*60)
+
+    # Gradiente
+    grad_sim, grad_num = gradiente_funcao(f_expr)
+    print("\n1. GRADIENTE:")
+    print("∇f(x, y) =")
+    for g in grad_sim:
+        print(f"  {g}")
+    print(f"∇f(0, 0) = {grad_num}")
+
+    # Hessiana
+    H_sim, H_num = hessiana_funcao(f_expr)
+    print("\n2. HESSIANA:")
+    print(f"H(x, y) =\n{H_sim}")
+    print(f"H(0, 0) =\n{H_num}")
+
+    # Convexidade
+    autovalores, local_cvx, global_cvx = verificar_convexidade(H_sim)
+    print("\n3. CONVEXIDADE:")
+    print(f"Autovalores em (0,0): {autovalores}")
+    print(f"Convexa localmente? {'Sim' if local_cvx else 'Não'}")
+    print(f"Convexa globalmente? {'Sim' if global_cvx else 'Não'}")
+
+    # Curvatura
+    curv = curvatura_direcional(H_num, direcao)
+    print("\n4. CURVATURA NA DIREÇÃO:")
+    print(f"Direção d = {direcao}")
+    print(f"Curvatura em (0,0): {curv:.4f}")
+
+    # Precondicionamento
+    P, P_inv = precondicionamento(H_num)
+    print("\n5. PRECONDICIONAMENTO:")
+    print(f"Matriz P:\n{P}")
+    print(f"Matriz P⁻¹:\n{P_inv}")
+    y = np.array([0.5, 0.3])
+    x_transformado = ponto_base + P_inv @ y
+    print(f"x = x̄ + P⁻¹·y para y = {y}")
+    print(f"x_transformado = {x_transformado}")
+
+    # Visualização
+    print("\nGerando gráficos...")
+    plotar_graficos(f_expr, direcao)
+
+# Executar o script
+if __name__ == "__main__":
+    main()
+
+#Equipamento:
+
+#Processador   Intel(R) Core(TM) i3 CPU  M 380  @ 2.53GHz   2.53 GHz
+#RAM instalada	8,00 GB 
+#Tipo de sistema	SO de 64 bits, processador baseado em x64
